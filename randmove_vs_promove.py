@@ -82,7 +82,7 @@ class Board:
 		self.guidelines[y,x] = xline if xline < yline else yline
 		
     for i in range(361):
-        self.groups.append( None )
+        self.groups.append( Group(i, 0, self, False, True ) )
 	
     self.symbols = symbols
       
@@ -167,7 +167,7 @@ class Board:
     self.other_info = np.array(self.invalid_moves, copy=True)
     self.other_info[y+1,x+1] = -1
 	
-    newGroup = self.groups[pos] = Group(pos, lbl, self, True, False ) #.update( pos, lbl, self, True, False )
+    newGroup = self.groups[pos].update( pos, lbl, self, True, False )
 	
 	#link in 4 directions
     if y + 1 < self.dim:
