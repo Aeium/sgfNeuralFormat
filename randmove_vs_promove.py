@@ -82,7 +82,7 @@ class Board:
 		self.guidelines[y,x] = xline if xline < yline else yline
 		
     for i in range(361):
-        self.groups.append( Group(i, 0, self, False, True ) )
+        self.groups.append( None )
 	
     self.symbols = symbols
       
@@ -167,7 +167,7 @@ class Board:
     self.other_info = np.array(self.invalid_moves, copy=True)
     self.other_info[y+1,x+1] = -1
 	
-    newGroup = self.groups[pos].update( pos, lbl, self, True, False )
+    newGroup = self.groups[pos] = Group(pos, lbl, self, True, False )
 	
 	#link in 4 directions
     if y + 1 < self.dim:
@@ -180,25 +180,25 @@ class Board:
       west =  newGroup.link( pos - 1, self)
 	  
     #  check for captures 4 directions
-    if y + 1 < self.dim:
+    if y + 1 < self.dim and north != None:
       checkGroup = north.get_current_head()  
       libs = checkGroup.check_liberties(self)
       if libs == 0 and checkGroup.visible and (checkGroup != newGroup):
         checkGroup.remove_group(self)
 		
-    if y - 1 >= 0:
+    if y - 1 >= 0 and south != None:
       checkGroup = south.get_current_head()
       libs = checkGroup.check_liberties(self)
       if libs == 0 and checkGroup.visible and (checkGroup != newGroup):
         checkGroup.remove_group(self)
 		
-    if x + 1 < self.dim:
+    if x + 1 < self.dim and east != None:
       checkGroup = east.get_current_head()
       libs = checkGroup.check_liberties(self)
       if libs == 0 and checkGroup.visible and (checkGroup != newGroup):
         checkGroup.remove_group(self)
 		
-    if x - 1 >= 0: 
+    if x - 1 >= 0 and west != None: 
       checkGroup = west.get_current_head()
       libs = checkGroup.check_liberties(self)
       if libs == 0 and checkGroup.visible and (checkGroup != newGroup):
@@ -260,7 +260,10 @@ class Board:
 	#				matrix[element/19, element%19] = group.liberties
  
 	for i in range( self.dim +2):
-		for j in range( self.dim + 2 ):         
+		for j in range( self.dim + 2 ):
+			if(i == 0 or j == 0 or i == 21 or j == 21):
+				print(' '),
+				continue
 			idx = self.libertiesArray[i,j]
 			if idx > 0:
 				print( idx ),
@@ -341,7 +344,10 @@ class Board:
 	#				matrix[element/19, element%19] = group.lbl
  
 	for i in range( self.dim + 2 ):
-		for j in range( self.dim + 2 ):         
+		for j in range( self.dim + 2 ):
+			if(i == 0 or j == 0 or i == 21 or j == 21):
+				print(' '),
+				continue		
 			idx = self.stonesArray[i,j]
 			if idx == 1:
 				print( 'W' ),
@@ -403,13 +409,15 @@ class Group:
   def __init__( self, pos, lbl, board, visible, libertyGroup ):
   
     self.lbl = lbl	
-    self.elements = set([]) 
+    self.elements = set([pos]) 
     self.borders = set([])
     self.liberties = 0
     self.visible = visible
     self.pointer = None 
     self.isPointer = False
-    self.libertyGroup = libertyGroup	
+    self.id = pos
+	
+	
 	
   def print_group(self):
      for i in range(361):
@@ -439,12 +447,15 @@ class Group:
     self.visible = visible
     self.pointer = None 
     self.isPointer = False
-    self.libertyGroup = libertyGroup
     self.id = pos
     return self
 	
   #always called from new stone so we know where we are
   def link(self, localposition, board): 
+	
+	if (localposition in board.libertySet):
+	    self.borders.add(localposition)
+	    return None
 	
 	local = board.groups[localposition]
 	
@@ -455,19 +466,7 @@ class Group:
 	#print(local.elements)
 	
 	if ((self.lbl == local.lbl) & local.visible & (local != self)):
-
-		#print("LINKING CHECK LABELS~~~~~~~2~~~~~2~~~~~2~~~~~")
 		
-		#print("self label")
-		#print(self.lbl)
-		#print()
-		#self.print_group()
-	
-		#print("local label")
-		#print(local.lbl)
-		#print()
-		
-
 		self.elements |= local.elements
 		self.borders |= local.borders
 		self.borders -= self.elements
@@ -486,7 +485,7 @@ class Group:
 	    traceback.print_exception()
 	    exit()
     
-	return local	
+	return local
   
   def get_current_head_rec(self, target):
 	#print("self:")
@@ -509,13 +508,10 @@ class Group:
 		#print(self.isPointer)
 		return self.get_current_head_rec(self.pointer)
     else:
-		return self
-		    
+		return self   
 
 		
   def check_liberties(self, board):
-	if(self.libertyGroup):
-		return 1
 	self.borders -= self.elements  
 	libertySet = self.borders & board.libertySet
 	self.liberties = len(libertySet)
@@ -532,6 +528,7 @@ class Group:
 		x = element % 19
 		y = element / 19
 		board.stonesArray[y+1,x+1] = 0
+		board.libertySet.add(element)
     self.visible = False
 	
 	
@@ -540,7 +537,7 @@ class Group:
     updateSet = self.borders - board.libertySet
     updateGroups = set([])
     for frontier in updateSet:
-		updateGroups.add(board.groups[frontier].get_current_head().id)
+        updateGroups.add(board.groups[frontier].get_current_head().id)
     for id in updateGroups:
 		board.groups[id].check_liberties(board)
 
@@ -638,6 +635,7 @@ class Board():
  
             #moves = random.randrange(280)
 			
+			
             if(not item):
               #randBoard = Board(19)
               #for randMove in range(0,moves):
@@ -656,7 +654,7 @@ class Board():
               x = game.moves[ i ][0]
               y = game.moves[ i ][1]
               #x, y = board.__board_to_ints__(xchar, ychar)
-              writeData1 = board.place_stone( x, y, 1 if i % 2 else -1, i ) 
+              writeData1 = board.place_stone( x, y, 1 if i % 2 else -1, i) 
               #print(i)
               i = i + 1
             #print(writeData1[0,0,0].dtype)
