@@ -130,13 +130,18 @@ class Board:
     #backupLibertySet = copy.deepcopy(self.libertySet)
 	
     backupLibertySet = set(self.libertySet)
-    backupGroups = copy.deepcopy(self.groups)
+    backupGroups = []
+    for group in self.groups:
+        if(group):
+            backupGroups.append(group.copy())
+        else:
+            backupGroups.append(None)
 	
     #backupGroups = 
     backupStonesArray = np.copy(self.stonesArray)
     backupLibertiesArray = np.copy (self.libertiesArray)
 	
-    #stack = self.place_stone(x, y, lbl, number)
+    stack = self.place_stone(x, y, lbl, number)
 
     if backupLibertySet == self.libertySet and False:
        print("backup lib set == lib set. shallow set copy???")
@@ -149,17 +154,18 @@ class Board:
 	
 	#rewind the clock
     self.libertySet = backupLibertySet
-    #self.groups = backupGroups
+    self.groups = backupGroups
     self.stonesArray = backupStonesArray
     self.libertiesArray = backupLibertiesArray
 	
-    return None
-    #return stack
+    #return None
+    return stack
   
   def place_stone(self, x, y, lbl, number):
   
-    #x, y = self.__board_to_ints__( brd_x, brd_y )
     pos = self.__board_to_pos__( x, y )
+  
+    #x, y = self.__board_to_ints__( brd_x, brd_y )
     
     self.stonesArray[y+1, x+1] = lbl 
     self.libertySet.remove(pos)
@@ -181,34 +187,34 @@ class Board:
 	  
     #  check for captures 4 directions
     if y + 1 < self.dim and north != None:
-      checkGroup = north.get_current_head()  
+      checkGroup = north.get_current_head(self)  
       libs = checkGroup.check_liberties(self)
-      if libs == 0 and checkGroup.visible and (checkGroup != newGroup):
+      if libs == 0 and (checkGroup != newGroup):
         checkGroup.remove_group(self)
 		
     if y - 1 >= 0 and south != None:
-      checkGroup = south.get_current_head()
+      checkGroup = south.get_current_head(self)
       libs = checkGroup.check_liberties(self)
-      if libs == 0 and checkGroup.visible and (checkGroup != newGroup):
+      if libs == 0 and (checkGroup != newGroup):
         checkGroup.remove_group(self)
 		
     if x + 1 < self.dim and east != None:
-      checkGroup = east.get_current_head()
+      checkGroup = east.get_current_head(self)
       libs = checkGroup.check_liberties(self)
-      if libs == 0 and checkGroup.visible and (checkGroup != newGroup):
+      if libs == 0 and (checkGroup != newGroup):
         checkGroup.remove_group(self)
 		
     if x - 1 >= 0 and west != None: 
-      checkGroup = west.get_current_head()
+      checkGroup = west.get_current_head(self)
       libs = checkGroup.check_liberties(self)
-      if libs == 0 and checkGroup.visible and (checkGroup != newGroup):
+      if libs == 0  and (checkGroup != newGroup):
         checkGroup.remove_group(self)
 	   
 	# get current stone on the map
     newGroup.check_liberties(self)
 	
 	#need to do that before we return the stack
-    #self.calc_weights()
+    self.calc_weights()
 	
     #print("stones" , self.stonesArray[0].dtype)
     #print("liberties" , self.libertiesArray[0].dtype)
@@ -261,7 +267,7 @@ class Board:
  
 	for i in range( self.dim +2):
 		for j in range( self.dim + 2 ):
-			if(i == 0 or j == 0 or i == 21 or j == 21):
+			if(i == 0 or j == 0 or i == 20 or j == 20):
 				print(' '),
 				continue
 			idx = self.libertiesArray[i,j]
@@ -279,8 +285,8 @@ class Board:
 
 	self.heavyLibArray = np.zeros((21,21), dtype=np.uint8)
   	for group in self.groups:
-		if(group.visible):
-			libs = group.check_liberties(self)
+		if(group != None):
+			libs = group.get_current_head(self).check_liberties(self)
 			if (libs == 0):
 				continue
 			libertySet = group.borders & self.libertySet
@@ -345,7 +351,7 @@ class Board:
  
 	for i in range( self.dim + 2 ):
 		for j in range( self.dim + 2 ):
-			if(i == 0 or j == 0 or i == 21 or j == 21):
+			if(i == 0 or j == 0 or i == 20 or j == 20):
 				print(' '),
 				continue		
 			idx = self.stonesArray[i,j]
@@ -417,7 +423,27 @@ class Group:
     self.isPointer = False
     self.id = pos
 	
-	
+  def copy(self):
+  
+    # the basic idea is that groups need to be pointers or have their full info but not both
+	# so splitting them up that way might save copy time
+  
+    if(self.isPointer):
+        copyGroup = Group(None, None, None, None, None)
+        copyGroup.pointer = self.pointer  # this is still the old pointer
+        copyGroup.isPointer = True
+        copyGroup.id = self.id
+        return copyGroup
+  
+    else: 
+        copyGroup = Group(None, self.lbl, None, self.visible, None)
+        copyGroup.elements = set(self.elements)
+        copyGroup.borders = set(self.borders)
+        copyGroup.liberties = self.liberties	
+        copyGroup.pointer = None
+        copyGroup.isPointer = False
+        copyGroup.id = self.id
+        return copyGroup
 	
   def print_group(self):
      for i in range(361):
@@ -436,46 +462,28 @@ class Group:
 		   print ('.'),
 	    if i % 19 == 0:
 		   print(' ')
-
-
-  # replaces original blank group with real group
-  def update ( self, pos, lbl, board, visible, libertyGroup ):
-	
-    self.lbl = lbl	
-    self.elements = set([pos]) 
-    self.borders = set([])
-    self.visible = visible
-    self.pointer = None 
-    self.isPointer = False
-    self.id = pos
-    return self
 	
   #always called from new stone so we know where we are
   def link(self, localposition, board): 
 	
 	if (localposition in board.libertySet):
-	    self.borders.add(localposition)
-	    return None
+		self.borders.add(localposition)
+		return None
 	
 	local = board.groups[localposition]
-	
-	local = local.get_current_head()
-	
-	#self.print_group()
-	#print(self.elements)
-	#print(local.elements)
-	
-	if ((self.lbl == local.lbl) & local.visible & (local != self)):
+	local = local.get_current_head(board)
+
+	if ((self.lbl == local.lbl) & (local != self)):
 		
 		self.elements |= local.elements
 		self.borders |= local.borders
 		self.borders -= self.elements
-		local.pointer = self
+		local.pointer = self.id
 		local.isPointer = True
-		local.visible = False
+		#local.visible = False
 
 		#local.print_group()
-
+		
 	else:
 		self.borders.add(localposition)
 		
@@ -484,30 +492,15 @@ class Group:
 	    print(self.elements)
 	    traceback.print_exception()
 	    exit()
-    
+		
+	
 	return local
   
-  def get_current_head_rec(self, target):
-	#print("self:")
-	#print(self.elements)
-	#print("target:")
-	#print(target.elements)
-	#traceback.print_exception()
-	#exit()
-	
-	if(target.isPointer):
-		return target.get_current_head_rec(target.pointer)
-	else:
-		return target
-  
-  
   #returns the currently active group head  
-  def get_current_head(self):
-    if(self.isPointer):
-		#print(self.elements)
-		#print(self.isPointer)
-		return self.get_current_head_rec(self.pointer)
-    else:
+  def get_current_head(self, board):
+	if(self.isPointer):
+		return board.groups[self.pointer].get_current_head(board)   #self.pointer.get_current_head()
+	else:
 		return self   
 
 		
@@ -522,30 +515,31 @@ class Group:
 	return self.liberties
 	
   def remove_group(self, board):
-    #print("REMOVING GROUP!!~~~~~~~~~~~~~~~~~~")
-    #print(self.elements)
+  
     for element in self.elements:
 		x = element % 19
 		y = element / 19
 		board.stonesArray[y+1,x+1] = 0
-		board.libertySet.add(element)
+		#board.libertySet.add(element)
     self.visible = False
-	
 	
 	# update surrounding liberties after capture
     board.libertySet |= self.elements
+	
     updateSet = self.borders - board.libertySet
+	
     updateGroups = set([])
     for frontier in updateSet:
-        updateGroups.add(board.groups[frontier].get_current_head().id)
+        updateGroups.add(board.groups[frontier].get_current_head(board).id)
     for id in updateGroups:
-		board.groups[id].check_liberties(board)
+        if(board.groups[id]):
+            board.groups[id].get_current_head(board).check_liberties(board)
 
 	  # lets try adding fresh groups
 	  # for i in range(361):
       #  self.groups.append( Group(i, 0, self, False, True ) )	
     for element in self.elements:
-	   board.groups[element ] = Group(element, 0, self, False, True )
+	   board.groups[element ] = None
    
    
    
@@ -626,6 +620,7 @@ class Board():
 
           i = 0
           j = 0
+		  
           for item in sequence:  
  
 			#just tring single stream learning so commenting out siamese thing for now
@@ -655,8 +650,11 @@ class Board():
               y = game.moves[ i ][1]
               #x, y = board.__board_to_ints__(xchar, ychar)
               writeData1 = board.place_stone( x, y, 1 if i % 2 else -1, i) 
-              #print(i)
               i = i + 1
+              #print("i = %s" % i)
+              #array2 = board.print_board()
+              #array1 = board.print_board_liberty()
+
             #print(writeData1[0,0,0].dtype)
 	
             #transpose1 = writeData1.transpose((2, 0, 1))
@@ -667,6 +665,8 @@ class Board():
 	
             #data[j,:,:,:] = transpose1  #concatedData
 
+            #array2 = board.print_board()
+            #array1 = board.print_board_liberty()
 
             #np.set_printoptions(threshold=np.nan)
             #print(transpose1)
@@ -677,13 +677,12 @@ class Board():
 	
           #	def writeToDB(data, label, index, database):
 
-            #array2 = board.print_board()
-            #array1 = board.print_board_liberty()
+
 		  
           #print("writing")
           print(countTrain)
           print(countTest)
-          print(data.shape)
+          #print(data.shape)
           #print(j)
           if(train < 50):
             #lmdbReadWrite2.writeToDB(data, sequence, countTrain, dbNameTrain)
