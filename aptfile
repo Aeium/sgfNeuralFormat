@@ -1,0 +1,5 @@
+libprotobuf-dev
+protobuf-compiler
+libffi-dev
+python-dev
+build-essential
