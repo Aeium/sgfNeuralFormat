@@ -214,7 +214,8 @@ class Board:
     newGroup.check_liberties(self)
 	
 	#need to do that before we return the stack
-    self.calc_weights()
+    #self.calc_weights()
+    newGroup.weight_add(self)
 	
     #print("stones" , self.stonesArray[0].dtype)
     #print("liberties" , self.libertiesArray[0].dtype)
@@ -295,16 +296,16 @@ class Board:
 					x = liberty % 19
 					y = liberty / 19
 					self.heavyLibArray[y + 1, x+1] += weight
-	
+		
 	
   def print_weight( self):
   	for i in range( self.dim + 2 ):
 		for j in range( self.dim + 2 ):         
 			idx = self.heavyLibArray[i,j]
 			if idx > 0:
-				print( idx ),
+				print(repr(idx).rjust(3)),
 			else:
-				print( ' - ' ),
+				print( '  -' ),
 
 		print( '' )
 
@@ -419,8 +420,9 @@ class Group:
     self.borders = set([])
     self.liberties = 0
     self.visible = visible
-    self.pointer = None 
+    self.pointer = None	
     self.isPointer = False
+    self.weight = 0
     self.id = pos
 	
   def copy(self):
@@ -462,6 +464,16 @@ class Group:
 		   print ('.'),
 	    if i % 19 == 0:
 		   print(' ')
+		   
+  def weight_add(  self, board ):
+
+	libs = (self.borders & board.libertySet)
+	if(len(libs) > 0):
+		weight = int((len(self.elements) * 4) / len(libs))
+		for liberty in libs:
+			x = liberty % 19
+			y = liberty / 19
+			board.heavyLibArray[y + 1, x+1] += weight
 	
   #always called from new stone so we know where we are
   def link(self, localposition, board): 
@@ -473,6 +485,17 @@ class Group:
 	local = board.groups[localposition]
 	local = local.get_current_head(board)
 
+	# weights stuff
+	# subtract weights from any group that might get changed
+	prevLiberties = (local.borders & board.libertySet)
+	prevLiberties.add(self.id)
+	weight = len(local.elements) * 4 / len(prevLiberties)
+	for liberty in prevLiberties:
+		x = liberty % 19
+		y = liberty / 19
+		board.heavyLibArray[y + 1, x+1] -= weight
+	
+	
 	if ((self.lbl == local.lbl) & (local != self)):
 		
 		self.elements |= local.elements
@@ -481,18 +504,28 @@ class Group:
 		local.pointer = self.id
 		local.isPointer = True
 		#local.visible = False
-
-		#local.print_group()
+		
+		# if the new stone does link we should wait
+		# until all four link attempts have worked
 		
 	else:
 		self.borders.add(localposition)
+		
+		# if the new stone doesn't link it's safe to write the modified
+		# weight back now
+		prevLiberties.remove(self.id)
+		if(len(prevLiberties) > 0):
+			weight = len(local.elements) * 4 / len(prevLiberties)
+			for liberty in prevLiberties:
+				x = liberty % 19
+				y = liberty / 19
+				board.heavyLibArray[y + 1, x+1] += weight
 		
 	if(len(self.borders) == 0):
 	    print("EMPTY BORDERS WTF HOW POSSIBLE")
 	    print(self.elements)
 	    traceback.print_exception()
 	    exit()
-		
 	
 	return local
   
@@ -503,6 +536,11 @@ class Group:
 	else:
 		return self   
 
+		
+  # might be possible to subtract previous weight whenever removing
+  # or merging parts of groups
+  # and add weight whenever adding group
+  # always adding from root of group
 		
   def check_liberties(self, board):
 	self.borders -= self.elements  
@@ -652,7 +690,8 @@ class Board():
               writeData1 = board.place_stone( x, y, 1 if i % 2 else -1, i) 
               i = i + 1
               #print("i = %s" % i)
-              #array2 = board.print_board()
+              array2 = board.print_board()
+              array3 = board.print_weight()
               #array1 = board.print_board_liberty()
 
             #print(writeData1[0,0,0].dtype)
