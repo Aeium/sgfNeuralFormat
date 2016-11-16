@@ -6,7 +6,7 @@ import numpy as np
 import os
 import re
 from dirtSimpleSGF import SGFsequence
-#from lmdbReadWrite2 import lmdbReadWrite2
+from lmdbReadWrite2 import lmdbReadWrite2
 import traceback
 import random
 import copy
@@ -776,11 +776,11 @@ class Board():
           #print(data.shape)
           #print(j)
           if(train < 50):
-            #lmdbReadWrite2.writeToDB(data, sequence, countTrain, dbNameTrain)
+            lmdbReadWrite2.writeToDB(data, sequence, countTrain, dbNameTrain)
             countTrain = countTrain + len(sequence)
             train = train + 1;
           else:
-            #lmdbReadWrite2.writeToDB(data, sequence, countTest, dbNameTest)
+            lmdbReadWrite2.writeToDB(data, sequence, countTest, dbNameTest)
             countTest = countTest + len(sequence)
             train = 0;
 			
