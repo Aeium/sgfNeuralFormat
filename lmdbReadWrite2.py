@@ -1,5 +1,6 @@
 import numpy as np
 import lmdb
+import caffe
 import caffe_pb2
 import os
 import fnmatch
@@ -27,20 +28,39 @@ class lmdbReadWrite2(object):
 		#print(data[0])
 		print(data[0].dtype)
 		
-		with env.begin(write=True) as txn:
-			# txn is a Transaction object
-			for i in range(len(labels)):
-			  datum = caffe_pb2.Datum()
-			  datum.channels = data.shape[1]
-			  datum.height = data.shape[2]
-			  datum.width = data.shape[3]
-			  datum.data = data[i].tobytes()  # or .tostring() if numpy < 1.9
-			  datum.label = int(labels[i])
-			  str_id = '{0:08}'.format(startIndex + i)
+		if(labels != None):
+		
+			with env.begin(write=True) as txn:
+				# txn is a Transaction object
+				for i in range(len(labels)):
+					datum = caffe.proto.caffe_pb2.Datum()
+					datum = caffe.io.array_to_datum(data[i], int(labels[i]))
+					#datum.channels = data.shape[1]
+					#datum.height = data.shape[2]
+					#datum.width = data.shape[3]
+					#datum.data = data[i].tobytes()  # or .tostring() if numpy < 1.9
+					#datum.label = int(labels[i])
+					str_id = '{0:08}'.format(startIndex + i)
 	
-				# The encode is only essential in Python 3
-			  txn.put(str_id.encode('ascii'), datum.SerializeToString())
+					# The encode is only essential in Python 3
+					txn.put(str_id.encode('ascii'), datum.SerializeToString())
 				
+		else:
+		
+			with env.begin(write=True) as txn:
+				# txn is a Transaction object
+				for i in range(len(data)):
+					datum = caffe.proto.caffe_pb2.Datum()
+					datum = caffe.io.array_to_datum(data[i])
+					#datum.channels = data.shape[1]
+					#datum.height = data.shape[2]
+					#datum.width = data.shape[3]
+					#datum.data = data[i].tobytes()  # or .tostring() if numpy < 1.9
+					#datum.label = int(labels[i])
+					str_id = '{0:08}'.format(startIndex + i)
+	
+					# The encode is only essential in Python 3
+					txn.put(str_id.encode('ascii'), datum.SerializeToString())
 
 
 	@staticmethod

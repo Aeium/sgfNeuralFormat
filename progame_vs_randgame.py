@@ -160,6 +160,7 @@ class Board:
     self.libertiesArray = backupLibertiesArray
     self.heavyLibArray = backupHeavyLibArray
 	
+    #return None
     return stack
   
   def place_stone(self, x, y, lbl, number):
@@ -168,15 +169,7 @@ class Board:
   
     #x, y = self.__board_to_ints__( brd_x, brd_y )
     
-    noise = random.randrange(50)   # add noise
-    #print("lablel for %s: %s" % (number, lbl))
-    if(lbl == -1):
-        nlbl = lbl - noise
-    else:
-        nlbl = lbl + noise	
-    #print("nlablel for %s: %s" % (number, nlbl))
-	
-    self.stonesArray[y+1, x+1] = nlbl 
+    self.stonesArray[y+1, x+1] = lbl 
     self.libertySet.remove(pos)
 	
     self.other_info = np.array(self.invalid_moves, copy=True)
@@ -400,25 +393,22 @@ class Board:
 	#	if(group.visible):
 	#		for element in group.elements:
 	#				matrix[element/19, element%19] = group.lbl
- 
-	for i in range( self.dim + 2 ):
-		for j in range( self.dim + 2 ):
+		
+	for i in range(self.dim + 2):
+		for j in range(self.dim + 2):
 			if(i == 0 or j == 0 or i == 20 or j == 20):
 				print(' '),
-				continue		
+				continue	
 			idx = self.stonesArray[i,j]
-			if idx == 1:
-				print( 'W' ),
-			elif idx == 255:
-				print( 'B' ),
-			elif idx == 2:
+			if idx < 80:
+				print('O'),
+			elif idx > 190:
 				print('X'),
-			elif idx == 3:
-				print('*'),
+			elif idx == 127:
+				print('-'),
 			else:
-				print( '-' ),
-
-		print( '' )
+			    error = 1/0
+		print('')
 	return self.stonesArray
 
   def return_board_array( self ):
@@ -616,7 +606,7 @@ class Group:
     for element in self.elements:
 		x = element % 19
 		y = element / 19
-		board.stonesArray[y+1,x+1] = 127
+		board.stonesArray[y+1,x+1] = 0
 		#board.libertySet.add(element)
     self.visible = False
 	
@@ -691,18 +681,14 @@ class Board():
           sgfString = f.read()
 	
           game = SGFsequence(sgfString)
-          board = Board( 19 )
-		  
-		  
-          # legit moves
+          board = Board( 19 ) 
+  
           onesA = np.ones((len(game.moves)))
-		  
-		  # random moves
-		  # random number of random moves
-          zerosLen = random.randrange(len(onesA)*2)		  
-          zerosA = np.zeros(zerosLen)
+          zerosA = np.zeros((len(game.moves)))
   
           sequence = np.append(onesA, (zerosA))
+  
+ 
   
          #make a random sequence between random and pro moves
          #so we will know the total length
@@ -721,6 +707,7 @@ class Board():
 
           i = 0
           j = 0
+          path = countTrain/100000
 		  
           for item in sequence:  
  
@@ -728,29 +715,52 @@ class Board():
  
             #writeData2 = lmdbReadWrite2.getRandDataPoint(  max, inputDB)[0] #read from db
  
- 
-            #moves = random.randrange(280)
+            if(path >= i):
+                if(i > 0):
+                    moves = i-1
+                else:
+                    moves = 0
+            else:				
+                moves = random.randrange(path, i)
+				
+            #print("moves = %s" % moves)
+            #print("    i = %s" % i)
 			
 			
             if(not item):
-              #randBoard = Board(19)
-              #for randMove in range(0,moves):
+              randBoard = Board(19)
+              for orderMove in range(0,moves):
+                #print("ordermove: %s" % orderMove)
+                #print(game.moves)
                 #randomPosition = random.sample((randBoard.libertySet),1)
-                #x = randomPosition[0] % 19
-                #y = randomPosition[0] / 19
-                #randBoard.place_stone(x, y, 1 if randMove % 2 else -1, i-1)
+                x = game.moves[orderMove][0] #randomPosition[0] % 19
+                y = game.moves[orderMove][1] #randomPosition[0] / 19
+                #print("x: %s" % x)
+                #print("y: %s" % y)
+                #randBoard.print_board()
+                #print((set(range(361)) - randBoard.libertySet))
+                writeData1 = randBoard.place_stone(x, y, 1 if orderMove % 2 else -1, i-1)
 				
-              randomPosition = random.sample((board.libertySet),1)
+              for randMove in range(moves,i+1):
+                #print("randmove: %s" % randMove)
+                #print((set(range(361)) - randBoard.libertySet))
+                randomPosition = random.sample((randBoard.libertySet),1)
+                #print("randomPos: %s " % randomPosition)
+                x = randomPosition[0] % 19
+                y = randomPosition[0] / 19
+                writeData1 = randBoard.place_stone(x, y, 1 if randMove % 2 else -1, i-1)
+              #randomPosition = random.sample((board.libertySet),1)
               #print("randompos: %d" % randomPosition[0])
-              x = randomPosition[0] % 19
-              y = randomPosition[0] / 19
-              writeData1 = board.poof_stone(x, y, 0 if i % 2 else -1, i)
+              #x = randomPosition[0] % 19
+              #y = randomPosition[0] / 19
+              #writeData1 = board.poof_stone(x, y, 1 if i % 2 else -1, i)
+			  
 	
             else:
               x = game.moves[ i ][0]
               y = game.moves[ i ][1]
               #x, y = board.__board_to_ints__(xchar, ychar)
-              writeData1 = board.place_stone( x, y, 0 if i % 2 else -1, i) 
+              writeData1 = board.place_stone( x, y, 1 if i % 2 else -1, i) 
               i = i + 1
               #print("i = %s" % i)
               #array2 = board.print_board()
@@ -787,11 +797,11 @@ class Board():
           print(data.shape)
           #print(j)
           if(train < 50):
-            lmdbReadWrite2.writeToDB(data, sequence, countTrain, "train_%s_%s" % (sys.argv[1], countTrain/7000000))
+            lmdbReadWrite2.writeToDB(data, sequence, countTrain, "halfrand_train_%s_%s" % (sys.argv[1], countTrain/1000000))
             countTrain = countTrain + len(sequence)
             train = train + 1;
           else:
-            lmdbReadWrite2.writeToDB(data, sequence, countTest, "test_%s_%s" % (sys.argv[1], countTest/140000))
+            lmdbReadWrite2.writeToDB(data, sequence, countTest, "halfrand_test_%s_%s" % (sys.argv[1], countTest/20000))
             countTest = countTest + len(sequence)
             train = 0;
 			

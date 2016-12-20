@@ -400,25 +400,23 @@ class Board:
 	#	if(group.visible):
 	#		for element in group.elements:
 	#				matrix[element/19, element%19] = group.lbl
- 
-	for i in range( self.dim + 2 ):
-		for j in range( self.dim + 2 ):
+		
+	for i in range(self.dim + 2 ):
+		for j in range(self.dim + 2 ):
 			if(i == 0 or j == 0 or i == 20 or j == 20):
 				print(' '),
-				continue		
+				continue	
 			idx = self.stonesArray[i,j]
-			if idx == 1:
-				print( 'W' ),
-			elif idx == 255:
-				print( 'B' ),
-			elif idx == 2:
+			if idx < 80:
+				print('O'),
+			elif idx > 190:
 				print('X'),
-			elif idx == 3:
-				print('*'),
+			elif idx == 127:
+				print('-'),
 			else:
-				print( '-' ),
+			    error = 1/0
+		print('')		
 
-		print( '' )
 	return self.stonesArray
 
   def return_board_array( self ):
@@ -668,7 +666,8 @@ class Board():
   
   
   train = True
-  
+  writeData = np.array([], dtype=np.uint8).reshape(0,4,21,21)
+  writeSequence = np.array([])
  
   
   for dirName, subdirList, fileList in os.walk(rootDir):
@@ -721,6 +720,8 @@ class Board():
 
           i = 0
           j = 0
+          randGame = True
+          path = countTrain/100000
 		  
           for item in sequence:  
  
@@ -730,22 +731,44 @@ class Board():
  
  
             #moves = random.randrange(280)
+            if(path >= i and randGame):
+                if(i > 0):
+                    moves = i-1
+                else:
+                    moves = 0
+            elif(randGame):				
+                moves = random.randrange(path, i)
 			
 			
-            if(not item):
+			
+            if(not item and not randGame):
               #randBoard = Board(19)
               #for randMove in range(0,moves):
                 #randomPosition = random.sample((randBoard.libertySet),1)
                 #x = randomPosition[0] % 19
                 #y = randomPosition[0] / 19
-                #randBoard.place_stone(x, y, 1 if randMove % 2 else -1, i-1)
-				
+                #randBoard.place_stone(x, y, 1 if randMove % 2 else -1, i-1)   			  
               randomPosition = random.sample((board.libertySet),1)
               #print("randompos: %d" % randomPosition[0])
               x = randomPosition[0] % 19
               y = randomPosition[0] / 19
               writeData1 = board.poof_stone(x, y, 0 if i % 2 else -1, i)
-	
+            
+            elif(not item):  # randgame alternative move here
+			
+              randBoard = Board(19)
+              for orderMove in range(0,moves):
+                x = game.moves[orderMove][0] #randomPosition[0] % 19
+                y = game.moves[orderMove][1] #randomPosition[0] / 19
+                writeData1 = randBoard.place_stone(x, y, 1 if orderMove % 2 else -1, i-1)
+				
+              for randMove in range(moves,i+1):
+                randomPosition = random.sample((randBoard.libertySet),1)
+                x = randomPosition[0] % 19
+                y = randomPosition[0] / 19
+                writeData1 = randBoard.place_stone(x, y, 1 if randMove % 2 else -1, i-1)
+			  			  
+
             else:
               x = game.moves[ i ][0]
               y = game.moves[ i ][1]
@@ -779,21 +802,45 @@ class Board():
 	
           #	def writeToDB(data, label, index, database):
 
+          #print(data.shape)
+          train = train + 1
+          writeData = np.concatenate((data, writeData))
+          writeSequence = np.concatenate((sequence, writeSequence))          
 
+          if(train >= 30):
+		  
+              if(countTrain > 6000000):
+                  error = 1/0			  
+              print("writing to database")
+              print(countTrain)
+              print(countTest)
+              print(data.shape)
+              print(writeData.shape)
+              rng_state = np.random.get_state()
+              np.random.shuffle(writeData)
+              np.random.set_state(rng_state)
+              np.random.shuffle(writeSequence)
+              length = len(writeSequence)
+              part = length / 50
+              lmdbReadWrite2.writeToDB(writeData[part:], writeSequence[part:], countTrain, "shuf2_train_%s_%s_randboard:%s" % (sys.argv[1], countTrain/7000000, randGame))
+              countTrain = countTrain + length - part  
+              lmdbReadWrite2.writeToDB(writeData[:part], writeSequence[:part], countTest, "shuf2_test_%s_%s_randboard:%s" % (sys.argv[1], countTest/140000, randGame))
+              countTest = countTest + part
+              train = 0
+              writeData = np.array([], dtype=np.uint8).reshape(0,4,21,21)
+              writeSequence = np.array([])
 		  
           #print("writing")
-          print(countTrain)
-          print(countTest)
-          print(data.shape)
+
           #print(j)
-          if(train < 50):
-            lmdbReadWrite2.writeToDB(data, sequence, countTrain, "train_%s_%s" % (sys.argv[1], countTrain/7000000))
-            countTrain = countTrain + len(sequence)
-            train = train + 1;
-          else:
-            lmdbReadWrite2.writeToDB(data, sequence, countTest, "test_%s_%s" % (sys.argv[1], countTest/140000))
-            countTest = countTest + len(sequence)
-            train = 0;
+          #if(train < 50):
+          #  lmdbReadWrite2.writeToDB(data, sequence, countTrain, "train_%s_%s" % (sys.argv[1], countTrain/7000000))
+          #  countTrain = countTrain + len(sequence)
+          #  train = train + 1;
+          #else:
+          #  lmdbReadWrite2.writeToDB(data, sequence, countTest, "test_%s_%s" % (sys.argv[1], countTest/140000))
+          #  countTest = countTest + len(sequence)
+          #  train = 0;
 			
           	
 	
